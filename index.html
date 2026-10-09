@@ -14,7 +14,7 @@
   --bg:#f6f3ee; --card:#fffdfa; --ink:#2b2724; --muted:#877f77;
   --line:#e4ded5; --accent:#3f6b52; --accent-soft:#e7efe9;
   --warn:#9a5b1f; --warn-soft:#fbf0e2; --off:#ded8cf;
-  --pos:#9a5b1f; --neg:#3f6b52;
+  --pos:#9a5b1f; --neg:#3f6b52; --on:#fff;
   --radius:14px;
 }
 @media (prefers-color-scheme:dark){
@@ -22,7 +22,7 @@
     --bg:#191715; --card:#232120; --ink:#ece7e1; --muted:#9a938b;
     --line:#35312e; --accent:#7fb495; --accent-soft:#25332b;
     --warn:#d8a05e; --warn-soft:#33291d; --off:#3a3633;
-    --pos:#d8a05e; --neg:#7fb495;
+    --pos:#d8a05e; --neg:#7fb495; --on:#12231a;
   }
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -50,7 +50,7 @@ h1{font-size:17px;margin:4px 0 12px;font-weight:600;letter-spacing:-.01em}
 .quick{display:flex;gap:8px;margin-bottom:12px}
 .quick button{
   flex:1;padding:14px 8px;border-radius:12px;border:1px solid var(--accent);
-  background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer
+  background:var(--accent);color:var(--on);font-size:15px;font-weight:600;cursor:pointer
 }
 .quick button.ghost{background:var(--card);color:var(--accent)}
 .quick button:disabled{opacity:.4;cursor:default}
@@ -90,7 +90,7 @@ tr.row.today td:first-child::after{content:"•";color:var(--accent);margin-left
   padding:10px 14px;border-radius:10px;border:1px solid var(--line);
   background:var(--bg);color:var(--ink);font-size:14px;cursor:pointer;font-family:inherit
 }
-.btnrow button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btnrow button.primary{background:var(--accent);border-color:var(--accent);color:var(--on);font-weight:600}
 .btnrow button.danger{color:var(--warn)}
 .msg{font-size:13px;margin-top:8px;padding:8px 10px;border-radius:9px;background:var(--warn-soft);color:var(--warn)}
 .msg:empty{display:none}
@@ -129,6 +129,19 @@ tr.row.today td:first-child::after{content:"•";color:var(--accent);margin-left
 .card p.note{font-size:12px;color:var(--muted);margin:8px 0 0}
 tr.hi td{font-weight:600}
 .tiny{font-size:11px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.5}
+
+/* Betreuungsumfang */
+.ask{border-color:var(--accent)}
+.ask .q{font-size:14px;font-weight:600}
+.ask .btnrow{margin-top:8px}
+.umf{margin-top:10px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.umf button,.umfRow button{
+  padding:5px 10px;border-radius:8px;border:1px solid var(--line);
+  background:var(--bg);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit
+}
+.umfRow{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:13px}
+.umfRow span{flex:1;color:var(--muted)}
+.umfRow button.on{background:var(--accent);border-color:var(--accent);color:var(--on)}
 </style>
 </head>
 <body>
@@ -140,6 +153,11 @@ tr.hi td{font-weight:600}
     <button id="prev" aria-label="Vorherige Woche">‹</button>
     <div class="label"><span id="wkLabel"></span><span class="sub" id="wkSub"></span></div>
     <button id="next" aria-label="Nächste Woche">›</button>
+  </div>
+
+  <div class="card ask" id="ask" hidden>
+    <div class="q" id="askText"></div>
+    <div class="btnrow" id="askBtns"></div>
   </div>
 
   <div class="quick">
@@ -182,6 +200,8 @@ tr.hi td{font-weight:600}
     </div>
     <div class="rec" id="rec"></div>
     <div class="hints" id="hints"></div>
+    <div class="umf" id="umf"></div>
+    <div id="umfEdit" hidden></div>
   </div>
 
   <button id="anaOpen" class="anaBtn">Auswertung</button>
@@ -205,8 +225,8 @@ tr.hi td{font-weight:600}
 
 /* ---------- Regeln ---------- */
 const R = {
-  dayTarget: 420,        // 7h Richtwert
-  weekBudget: 2100,      // 35h
+  dayTarget: 420,        // Standard 7h, falls noch kein Monat eingestellt ist
+  hourChoices: [6,7,8,9],// wählbarer Betreuungsumfang pro Tag
   open: 7*60,            // 07:00 frühester Zutritt
   close: 16*60+30,       // 16:30 spätester
   blockFrom: 11*60+45,   // Mittagssperre
@@ -218,7 +238,9 @@ const R = {
   breakfastRuleEnds: "2026-09-28",
   start: "2026-08-24"     // Beginn der Erfassung, alles davor wird entfernt
 };
-const VERSION = "2.0";
+const VERSION = "2.1";
+// Voreinstellung Betreuungsumfang (Minuten pro Tag, ab Monat). Wird nur gesetzt, wenn der Monat noch leer ist.
+const HOURS_DEFAULT = {};   // öffentliche Version: Umfang wird beim ersten Öffnen abgefragt
 // gilt die Frühstückssperre an diesem Tag? (Tage ohne Datum = historisch = ja)
 const breakfastApplies = key => !key || key < R.breakfastRuleEnds;
 
@@ -243,15 +265,28 @@ function load(){
 function migrate(d){
   for(const k of Object.keys(d.days)){ if(k < R.start) delete d.days[k]; }
   delete d.undated;
-  d.version = 3;
+  // v4: Betreuungsumfang pro Monat
+  if(!d.hours) d.hours = {};
+  for(const m of Object.keys(HOURS_DEFAULT)){ if(d.hours[m]==null) d.hours[m] = HOURS_DEFAULT[m]; }
+  d.version = 4;
   return d;
 }
+
+/* ---------- Betreuungsumfang ---------- */
+// Wert des Monats; ist der Monat nicht eingestellt, gilt der letzte eingestellte Monat davor
+function monthTarget(m){
+  const set = Object.keys(data.hours).filter(k => k <= m).sort();
+  return set.length ? data.hours[set[set.length-1]] : R.dayTarget;
+}
+const dayTarget = key => monthTarget(key.slice(0,7));
+function setMonth(m, v){ data.hours[m] = v; save(); umfOpen = false; render(); }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(data)); }
   catch(e){ alert("Speichern fehlgeschlagen. Speicher voll oder privater Modus?"); }
 }
-// Erster Start: leer. Alle Einträge entstehen in der App und bleiben im Browser.
-function seedDays(){ return {}; }
+function seedDays(){
+  return {};   // öffentliche Version: keine Startdaten
+}
 
 /* ---------- Zeit-Helfer ---------- */
 const pad = n => String(n).padStart(2,"0");
@@ -279,6 +314,8 @@ function mondayOf(d){
 const DAYS = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag"];
 const SHORT = ["Mo","Di","Mi","Do","Fr"];
 const dmy = d => pad(d.getDate())+"."+pad(d.getMonth()+1)+".";
+const MONTHS = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const monthName = m => MONTHS[+m.slice(5,7)-1]+" "+m.slice(0,4);
 
 /* ---------- Woche berechnen ---------- */
 let cursor = mondayOf(new Date());   // Montag der angezeigten Woche
@@ -289,7 +326,8 @@ function firstMonday(){ return mondayOf(parseISO(R.start)); }
 function weekDates(mon){ return [0,1,2,3,4].map(i => addDays(mon,i)); }
 
 // Regel: Ein vergangener Tag ohne vollständige Zeiten zählt, als wäre er nicht da gewesen
-// (wie ein Ausfalltag: Budget −7h). Heute und kommende Tage bleiben offen.
+// (wie ein Ausfalltag: Budget sinkt um den Tagesumfang). Heute und kommende Tage bleiben offen.
+// Jeder Tag zählt mit dem Betreuungsumfang seines Monats (Wochen über Monatsgrenzen stimmen so).
 function computeWeek(mon){
   const today = iso(new Date());
   const dates = weekDates(mon);
@@ -299,19 +337,20 @@ function computeWeek(mon){
     const complete = !e.off && e.start!=null && e.end!=null;
     const missing = !e.off && !complete && key < today;
     const minutes = complete ? e.end - e.start : null;
+    const target = dayTarget(key);
     return {
       key, date:d, idx:i, name:DAYS[i], short:SHORT[i],
       start:e.start, end:e.end, off:!!e.off,
-      complete, missing, minutes,
+      complete, missing, minutes, target,
       partial: missing && (e.start!=null || e.end!=null),
-      balance: complete ? minutes - R.dayTarget : null,
+      balance: complete ? minutes - target : null,
       flags: complete || (!missing && !e.off) ? flagsFor(e, key) : []
     };
   });
   const offCount = rows.filter(r=>r.off).length;
   const missingCount = rows.filter(r=>r.missing).length;
   const absent = offCount + missingCount;
-  const budget = R.weekBudget - absent*R.dayTarget;
+  const budget = rows.reduce((s,r)=> s + (r.off || r.missing ? 0 : r.target), 0);
   const used = rows.reduce((s,r)=> s + (r.complete ? r.minutes : 0), 0);
   const openRows = rows.filter(r => !r.off && !r.complete && !r.missing);
   const pending = openRows.filter(r => r.start!=null && r.end==null);
@@ -352,8 +391,8 @@ function recommend(w){
     let end = open.start + perDay;
     let note = "";
     if(end < R.blockTo){
-      note = "Vor 14:30 nicht möglich – Woche geht dadurch "+signed(R.blockTo-end)+" über das Budget.";
-      end = R.blockTo;
+      note = "Vor 14:30 nicht möglich – Woche geht dadurch "+signed(R.blockTo+1-end)+" über das Budget.";
+      end = R.blockTo + 1;   // 14:30 selbst gilt noch als Mittagssperre (siehe flagsFor)
     }
     if(end > R.close){
       note = "Nach 16:30 nicht möglich – es bleiben "+signed(end-R.close)+" ungenutzt.";
@@ -365,10 +404,18 @@ function recommend(w){
       note
     };
   }
-  return {
-    text:"Empfehlung pro offenem Tag", time:dur(perDay),
-    sub:w.openRows.length+" Tag"+(w.openRows.length>1?"e":"")+" offen · bei Bringen 08:00 Abholen "+hhmm(Math.min(R.close, 480+perDay))
-  };
+  // Beispielzeiten: Bringen 08:00; fällt Abholen in die Mittagssperre, später bringen (Abholen 14:31)
+  const days = w.openRows.length+" Tag"+(w.openRows.length>1?"e":"")+" offen · ";
+  let ex;
+  if(480 + perDay > R.blockTo){
+    ex = "bei Bringen 08:00 Abholen "+hhmm(Math.min(R.close, 480+perDay));
+  }else{
+    const bring = R.blockTo + 1 - perDay;
+    ex = bring <= R.bringDeadline
+      ? "Bringen frühestens "+hhmm(bring)+" → Abholen "+hhmm(R.blockTo+1)
+      : "zu wenig Restzeit: Bringen 09:40, Abholen 14:31 geht über das Budget";
+  }
+  return {text:"Empfehlung pro offenem Tag", time:dur(perDay), sub:days+ex};
 }
 
 /* ---------- Rendern ---------- */
@@ -382,7 +429,8 @@ function render(){
   const sub = [];
   if(w.offCount) sub.push(w.offCount+" Ausfalltag"+(w.offCount>1?"e":""));
   if(w.missingCount) sub.push(w.missingCount+" ohne Eintrag");
-  $("wkSub").textContent = w.absent ? "verkürzte Woche · "+sub.join(", ") : "reguläre Woche";
+  const hrs = [...new Set(w.rows.map(r=>r.target/60+"h"))].join(" → ")+"/Tag";
+  $("wkSub").textContent = (w.absent ? "verkürzte Woche · "+sub.join(", ") : "reguläre Woche")+" · "+hrs;
 
   const today = iso(new Date());
   const tb = $("tbody"); tb.innerHTML = "";
@@ -428,11 +476,55 @@ function render(){
   w.rows.forEach(r => { if(r.partial) hs.push(r.short+": "+(r.end==null?"Abholzeit":"Bringzeit")+" fehlt – Tag wird nicht gerechnet"); });
   $("hints").innerHTML = hs.map(h=>"<div>"+h+"</div>").join("");
 
+  renderHours(w);
+
   $("prev").disabled = cursor <= firstMonday();
 
   const todayRow = w.rows.find(r=>r.key===today);
   $("qBring").disabled = !todayRow || todayRow.off || todayRow.start!=null;
   $("qHol").disabled   = !todayRow || todayRow.off || todayRow.start==null || todayRow.end!=null;
+}
+
+/* ---------- Betreuungsumfang: Monatsfrage + ändern ---------- */
+let umfOpen = false;
+function hourButton(m, h, cls, label){
+  const b = document.createElement("button");
+  b.textContent = label || h+"h";
+  if(cls) b.className = cls;
+  b.onclick = () => setMonth(m, h*60);
+  return b;
+}
+function renderHours(w){
+  // Box zum Monatsanfang: erscheint, solange der laufende Monat nicht bestätigt ist
+  const m = iso(new Date()).slice(0,7);
+  const ask = $("ask");
+  if(data.hours[m]==null){
+    const cur = monthTarget(m)/60;
+    $("askText").textContent = "Neuer Monat ("+monthName(m)+"): Betreuungsumfang pro Tag?";
+    const bx = $("askBtns"); bx.innerHTML = "";
+    bx.appendChild(hourButton(m, cur, "primary", "Bleibt "+cur+"h"));
+    R.hourChoices.filter(h=>h!==cur).forEach(h => bx.appendChild(hourButton(m, h)));
+    ask.hidden = false;
+  }else ask.hidden = true;
+
+  // Zeile unter der Wochenbilanz: Umfang der angezeigten Woche, änderbar
+  const months = [...new Set(w.rows.map(r=>r.key.slice(0,7)))];
+  const txt = months.map(k => (months.length>1 ? MONTHS[+k.slice(5,7)-1]+" " : "")+monthTarget(k)/60+"h/Tag").join(" · ");
+  $("umf").innerHTML = "";
+  const s = document.createElement("span"); s.textContent = "Umfang: "+txt;
+  const b = document.createElement("button"); b.textContent = umfOpen ? "fertig" : "ändern";
+  b.onclick = () => { umfOpen = !umfOpen; render(); };
+  $("umf").append(s, b);
+
+  const ed = $("umfEdit"); ed.innerHTML = "";
+  ed.hidden = !umfOpen;
+  if(umfOpen) months.forEach(k=>{
+    const row = document.createElement("div"); row.className = "umfRow";
+    const l = document.createElement("span"); l.textContent = monthName(k); row.appendChild(l);
+    const cur = monthTarget(k)/60;
+    R.hourChoices.forEach(h => row.appendChild(hourButton(k, h, h===cur ? "on" : "")));
+    ed.appendChild(row);
+  });
 }
 
 /* ---------- Editor ---------- */
@@ -508,7 +600,8 @@ $("qBring").onclick = () => {
 $("qHol").onclick = () => {
   const k = iso(new Date()), m = nowMin();
   const e = data.days[k];
-  const bad = validate(e?e.start:null, m);
+  if(!e || e.start==null) return;   // Schutz: Ansicht kann nach Tageswechsel veraltet sein
+  const bad = validate(e.start, m);
   if(bad.length && !confirm(bad.join(" ")+"\n\nTrotzdem speichern?")) return;
   data.days[k] = {start:e.start, end:m, off:false};
   save(); cursor = mondayOf(new Date()); render();
@@ -516,8 +609,8 @@ $("qHol").onclick = () => {
   if(w.length) setTimeout(()=>alert(w.join("\n")),60);
 };
 
-$("prev").onclick = () => { if(cursor <= firstMonday()) return; cursor = addDays(cursor,-7); closeEditor(); };
-$("next").onclick = () => { cursor = addDays(cursor, 7); closeEditor(); };
+$("prev").onclick = () => { if(cursor <= firstMonday()) return; cursor = addDays(cursor,-7); umfOpen = false; closeEditor(); };
+$("next").onclick = () => { cursor = addDays(cursor, 7); umfOpen = false; closeEditor(); };
 
 /* ---------- Export ---------- */
 function allWeeks(){
@@ -537,7 +630,7 @@ function incompleteDays(){
   const today = iso(new Date());
   const bad = [];
   allWeeks().forEach(w => w.rows.forEach(r=>{
-    if(r.off || r.key > today) return;
+    if(r.off || r.key >= today) return;   // heute ist noch offen, nicht "unvollständig"
     if(r.start!=null && r.end==null) bad.push(r.key+" – Abholzeit fehlt");
     if(r.start==null && r.end!=null) bad.push(r.key+" – Bringzeit fehlt");
   }));
@@ -547,7 +640,7 @@ function checkBeforeExport(){
   const bad = incompleteDays();
   if(!bad.length) return true;
   return confirm("Unvollständige Tage:\n\n"+bad.join("\n")+
-    "\n\nDiese Tage zählen als nicht da gewesen (Budget −7h).\nTrotzdem exportieren?");
+    "\n\nDiese Tage zählen als nicht da gewesen (Budget sinkt um den Tagesumfang).\nTrotzdem exportieren?");
 }
 function download(name, text, mime){
   const b = new Blob([text], {type:mime});
@@ -557,7 +650,7 @@ function download(name, text, mime){
   setTimeout(()=>{ URL.revokeObjectURL(u); a.remove(); }, 1000);
 }
 function buildCsv(){
-  const L = ["Datum;Wochenstart;Tag;Status;Start;Ende;Dauer_min;Bilanz_min;Wochenbudget_min;Wochen_Ist_min;Wochen_Bilanz_min;Wochentyp;Vollstaendig;Hinweise"];
+  const L = ["Datum;Wochenstart;Tag;Status;Start;Ende;Dauer_min;Bilanz_min;Tagesumfang_min;Wochenbudget_min;Wochen_Ist_min;Wochen_Bilanz_min;Wochentyp;Vollstaendig;Hinweise"];
   allWeeks().forEach(w=>{
     const type = w.absent>0 ? "verkuerzt" : "regulaer";
     w.rows.forEach(r=>{
@@ -565,7 +658,7 @@ function buildCsv(){
         r.key, iso(w.mon), r.name,
         r.off ? "ausfall" : r.missing ? "nicht_gerechnet" : (r.complete ? "betreuung" : "offen"),
         r.start!=null?hhmm(r.start):"", r.end!=null?hhmm(r.end):"",
-        r.minutes!=null?r.minutes:"", r.balance!=null?r.balance:"",
+        r.minutes!=null?r.minutes:"", r.balance!=null?r.balance:"", r.target,
         w.budget, w.used, w.closed ? w.used-w.budget : "", type, w.missingCount?"nein":"ja",
         r.flags.join(" / ")
       ].join(";"));
@@ -586,7 +679,6 @@ $("expJson").onclick = () => {
 const avg = a => a.length ? Math.round(a.reduce((s,x)=>s+x,0)/a.length) : null;
 const hm = m => m==null ? "—" : hhmm(m);
 const fDate = k => { const d=parseISO(k); return dmy(d)+d.getFullYear(); };
-const MONTHS = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 const pct = (n,t) => t ? Math.round(n*100/t)+" %" : "—";
 
 function kv(rows){
@@ -688,7 +780,7 @@ function buildAnalytics(){
     Object.keys(mon).sort().reverse().map(k=>{ const a=mon[k];
       return [MONTHS[+k.slice(5,7)-1]+" "+k.slice(0,4), a.length, dur(a.reduce((s,x)=>s+x,0)), dur(avg(a))]; }))));
 
-  out.push("<p class='tiny'>Nur vollständig erfasste Tage. Tage ohne vollständige Zeiten zählen als nicht da gewesen. Laufende Woche nicht im Wochenkonto.</p>");
+  out.push("<p class='tiny'>Nur vollständig erfasste Tage. Tage ohne vollständige Zeiten zählen als nicht da gewesen. Nicht abgeschlossene Wochen sind nicht im Wochenkonto.</p>");
   return out.join("");
 }
 $("anaOpen").onclick = () => {
@@ -720,6 +812,19 @@ $("anaClose").onclick = () => { $("ana").hidden = true; $("main").hidden = false
 
 $("ver").textContent = VERSION;
 render();
+
+/* Home-Screen-App bleibt im Hintergrund offen: beim Zurückkehren neu berechnen,
+   bei Tageswechsel auf aktuelle Woche springen (sonst stale Buttons und Woche) */
+let lastDay = iso(new Date());
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState !== "visible") return;
+  const t = iso(new Date());
+  if(t !== lastDay){
+    lastDay = t; cursor = mondayOf(new Date());
+    selected = null; $("editor").hidden = true;
+  }
+  render();
+});
 </script>
 </body>
 </html>
