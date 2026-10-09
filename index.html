@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kita-Zeiten</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kita-Zeiten">
+<meta name="theme-color" content="#f6f3ee">
+<style>
+:root{
+  --bg:#f6f3ee; --card:#fffdfa; --ink:#2b2724; --muted:#877f77;
+  --line:#e4ded5; --accent:#3f6b52; --accent-soft:#e7efe9;
+  --warn:#9a5b1f; --warn-soft:#fbf0e2; --off:#ded8cf;
+  --pos:#9a5b1f; --neg:#3f6b52;
+  --radius:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#191715; --card:#232120; --ink:#ece7e1; --muted:#9a938b;
+    --line:#35312e; --accent:#7fb495; --accent-soft:#25332b;
+    --warn:#d8a05e; --warn-soft:#33291d; --off:#3a3633;
+    --pos:#d8a05e; --neg:#7fb495;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 24px);
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:560px;margin:0 auto;padding:12px 14px}
+h1{font-size:17px;margin:4px 0 12px;font-weight:600;letter-spacing:-.01em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+
+/* week nav */
+.nav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.nav button{
+  background:var(--card);border:1px solid var(--line);color:var(--ink);
+  width:38px;height:38px;border-radius:10px;font-size:18px;cursor:pointer;flex:none
+}
+.nav button:disabled{opacity:.3;cursor:default}
+.nav .label{flex:1;text-align:center;font-weight:600;font-size:15px}
+.nav .sub{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+
+/* quick actions */
+.quick{display:flex;gap:8px;margin-bottom:12px}
+.quick button{
+  flex:1;padding:14px 8px;border-radius:12px;border:1px solid var(--accent);
+  background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer
+}
+.quick button.ghost{background:var(--card);color:var(--accent)}
+.quick button:disabled{opacity:.4;cursor:default}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;text-align:right;padding:0 0 6px}
+th:first-child{text-align:left}
+td{padding:9px 0;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+td:first-child{text-align:left}
+tr.row{cursor:pointer}
+tr.row.sel td{background:var(--accent-soft)}
+tr.row.today td:first-child::after{content:"•";color:var(--accent);margin-left:5px;font-weight:700}
+.day{font-weight:600}
+.date{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.dash{color:var(--muted)}
+.off td{color:var(--muted);font-style:italic}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+.flagrow td:first-child{position:relative}
+.flag{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--warn);margin-left:5px;vertical-align:middle}
+
+/* editor */
+.editor{border-top:1px solid var(--line);margin-top:10px;padding-top:12px}
+.editor h2{font-size:14px;margin:0 0 10px;font-weight:600}
+.field{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.field label{width:64px;font-size:13px;color:var(--muted)}
+.field input[type=time]{
+  flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
+  background:var(--bg);color:var(--ink);font-size:16px;font-family:inherit;min-width:0
+}
+.field .now{
+  padding:9px 12px;border:1px solid var(--line);border-radius:9px;
+  background:var(--bg);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;flex:none
+}
+.btnrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btnrow button{
+  padding:10px 14px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg);color:var(--ink);font-size:14px;cursor:pointer;font-family:inherit
+}
+.btnrow button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btnrow button.danger{color:var(--warn)}
+.msg{font-size:13px;margin-top:8px;padding:8px 10px;border-radius:9px;background:var(--warn-soft);color:var(--warn)}
+.msg:empty{display:none}
+
+/* summary */
+.sum{display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:14px}
+.sum .k{color:var(--muted)}
+.sum .v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.rec{
+  margin-top:10px;padding:11px 12px;border-radius:11px;
+  background:var(--accent-soft);color:var(--ink);font-size:14px
+}
+.rec strong{font-size:16px}
+.rec .note{display:block;margin-top:4px;font-size:12px;color:var(--muted)}
+.hints{margin-top:10px;font-size:12px;color:var(--warn)}
+.hints div{margin-top:3px}
+
+/* footer */
+.foot{display:flex;gap:8px;flex-wrap:wrap}
+.foot button{
+  flex:1;min-width:130px;padding:11px;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);color:var(--ink);font-size:13px;cursor:pointer;font-family:inherit
+}
+.anaBtn{
+  width:100%;margin-bottom:8px;padding:13px;border-radius:10px;border:1px solid var(--accent);
+  background:var(--accent-soft);color:var(--accent);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit
+}
+.anaHead{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.anaHead button{
+  background:var(--card);border:1px solid var(--line);color:var(--ink);
+  padding:9px 14px;border-radius:10px;font-size:14px;cursor:pointer;font-family:inherit
+}
+.anaHead span{font-weight:600;font-size:15px}
+.card h2{font-size:13px;margin:0 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.card .sum + table{margin-top:10px}
+.card p.note{font-size:12px;color:var(--muted);margin:8px 0 0}
+tr.hi td{font-weight:600}
+.tiny{font-size:11px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kita-Zeiten</h1>
+
+<div id="main">
+  <div class="nav">
+    <button id="prev" aria-label="Vorherige Woche">‹</button>
+    <div class="label"><span id="wkLabel"></span><span class="sub" id="wkSub"></span></div>
+    <button id="next" aria-label="Nächste Woche">›</button>
+  </div>
+
+  <div class="quick">
+    <button id="qBring">Bringen jetzt</button>
+    <button id="qHol" class="ghost">Abholen jetzt</button>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>Tag</th><th>Start</th><th>Ende</th><th>Dauer</th><th>Bilanz</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="editor" id="editor" hidden>
+      <h2 id="edTitle"></h2>
+      <div class="field">
+        <label for="inStart">Bringen</label>
+        <input type="time" id="inStart" step="60">
+        <button class="now" data-for="inStart">Jetzt</button>
+      </div>
+      <div class="field">
+        <label for="inEnd">Abholen</label>
+        <input type="time" id="inEnd" step="60">
+        <button class="now" data-for="inEnd">Jetzt</button>
+      </div>
+      <div class="btnrow">
+        <button class="primary" id="edSave">Speichern</button>
+        <button id="edOff">Ausfalltag</button>
+        <button class="danger" id="edClear">Leeren</button>
+        <button id="edCancel">Zu</button>
+      </div>
+      <div class="msg" id="edMsg"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sum">
+      <span class="k">Soll</span><span class="v" id="sSoll"></span>
+      <span class="k">Ist</span><span class="v" id="sIst"></span>
+      <span class="k" id="kRest">Rest</span><span class="v" id="sRest"></span>
+    </div>
+    <div class="rec" id="rec"></div>
+    <div class="hints" id="hints"></div>
+  </div>
+
+  <button id="anaOpen" class="anaBtn">Auswertung</button>
+  <div class="foot">
+    <button id="expCsv">CSV exportieren</button>
+    <button id="expJson">Backup (JSON)</button>
+  </div>
+  <div class="tiny">
+    Daten liegen nur auf diesem Gerät.<br>Regelmäßig exportieren.<br>Version <span id="ver"></span>
+  </div>
+</div><!-- /main -->
+
+<div id="ana" hidden>
+  <div class="anaHead"><button id="anaClose">‹ Zurück</button><span>Auswertung</span></div>
+  <div id="anaBody"></div>
+</div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Regeln ---------- */
+const R = {
+  dayTarget: 420,        // 7h Richtwert
+  weekBudget: 2100,      // 35h
+  open: 7*60,            // 07:00 frühester Zutritt
+  close: 16*60+30,       // 16:30 spätester
+  blockFrom: 11*60+45,   // Mittagssperre
+  blockTo: 14*60+30,
+  bringDeadline: 9*60+40,// pädagogische Angebote
+  // Frühstückssperre 08:01–08:29 galt bis zum Gruppenwechsel (Nest -> ältere Gruppe)
+  breakfastFrom: 8*60+1,
+  breakfastTo: 8*60+29,
+  breakfastRuleEnds: "2026-09-28",
+  start: "2026-08-24"     // Beginn der Erfassung, alles davor wird entfernt
+};
+const VERSION = "2.0";
+// gilt die Frühstückssperre an diesem Tag? (Tage ohne Datum = historisch = ja)
+const breakfastApplies = key => !key || key < R.breakfastRuleEnds;
+
+/* ---------- Speicher ---------- */
+const KEY = "kita-tracker-v1";
+let data = load();
+
+function load(){
+  let d = null;
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw) d = JSON.parse(raw);
+  }catch(e){}
+  if(!d) d = {version:1, days:seedDays()};
+  d = migrate(d);
+  try{ localStorage.setItem(KEY, JSON.stringify(d)); }catch(e){}
+  return d;
+}
+
+// Migrationen laufen einmal pro Gerät. Bestehende Einträge werden nie überschrieben.
+// Alles vor Erfassungsbeginn entfernen (auch früher importierte Altdaten)
+function migrate(d){
+  for(const k of Object.keys(d.days)){ if(k < R.start) delete d.days[k]; }
+  delete d.undated;
+  d.version = 3;
+  return d;
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(data)); }
+  catch(e){ alert("Speichern fehlgeschlagen. Speicher voll oder privater Modus?"); }
+}
+// Erster Start: leer. Alle Einträge entstehen in der App und bleiben im Browser.
+function seedDays(){ return {}; }
+
+/* ---------- Zeit-Helfer ---------- */
+const pad = n => String(n).padStart(2,"0");
+const hhmm = m => pad(Math.floor(m/60))+":"+pad(m%60);
+function dur(m){
+  if(m==null) return "—";
+  const s = m<0 ? "−" : "", a = Math.abs(m);
+  return s+Math.floor(a/60)+"h "+pad(a%60)+"min";
+}
+function signed(m){
+  if(m===0) return "±0min";
+  const s = m>0?"+":"−", a=Math.abs(m);
+  return s + (a>=60 ? Math.floor(a/60)+"h "+pad(a%60)+"min" : a+"min");
+}
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+function parseISO(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function mondayOf(d){
+  const x = new Date(d);
+  const w = (x.getDay()+6)%7;          // Mo=0 … So=6
+  x.setDate(x.getDate()-w);
+  x.setHours(0,0,0,0);
+  return x;
+}
+const DAYS = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag"];
+const SHORT = ["Mo","Di","Mi","Do","Fr"];
+const dmy = d => pad(d.getDate())+"."+pad(d.getMonth()+1)+".";
+
+/* ---------- Woche berechnen ---------- */
+let cursor = mondayOf(new Date());   // Montag der angezeigten Woche
+
+// Früheste anzeigbare Woche: Beginn der Erfassung
+function firstMonday(){ return mondayOf(parseISO(R.start)); }
+
+function weekDates(mon){ return [0,1,2,3,4].map(i => addDays(mon,i)); }
+
+// Regel: Ein vergangener Tag ohne vollständige Zeiten zählt, als wäre er nicht da gewesen
+// (wie ein Ausfalltag: Budget −7h). Heute und kommende Tage bleiben offen.
+function computeWeek(mon){
+  const today = iso(new Date());
+  const dates = weekDates(mon);
+  const rows = dates.map((d,i)=>{
+    const key = iso(d);
+    const e = data.days[key] || {start:null,end:null,off:false};
+    const complete = !e.off && e.start!=null && e.end!=null;
+    const missing = !e.off && !complete && key < today;
+    const minutes = complete ? e.end - e.start : null;
+    return {
+      key, date:d, idx:i, name:DAYS[i], short:SHORT[i],
+      start:e.start, end:e.end, off:!!e.off,
+      complete, missing, minutes,
+      partial: missing && (e.start!=null || e.end!=null),
+      balance: complete ? minutes - R.dayTarget : null,
+      flags: complete || (!missing && !e.off) ? flagsFor(e, key) : []
+    };
+  });
+  const offCount = rows.filter(r=>r.off).length;
+  const missingCount = rows.filter(r=>r.missing).length;
+  const absent = offCount + missingCount;
+  const budget = R.weekBudget - absent*R.dayTarget;
+  const used = rows.reduce((s,r)=> s + (r.complete ? r.minutes : 0), 0);
+  const openRows = rows.filter(r => !r.off && !r.complete && !r.missing);
+  const pending = openRows.filter(r => r.start!=null && r.end==null);
+  return {mon, rows, budget, used, rest:budget-used, offCount, missingCount, absent,
+          openRows, pending, closed: openRows.length===0 && budget>0};
+}
+
+function flagsFor(e, key){
+  const f = [];
+  if(e.off) return f;
+  const bf = breakfastApplies(key);
+  const inBreakfast = v => bf && v >= R.breakfastFrom && v <= R.breakfastTo;
+  if(e.start!=null){
+    if(inBreakfast(e.start)) f.push("Bringen in Frühstückssperre");
+    if(e.start > R.bringDeadline) f.push("Bringen nach 09:40");
+    if(e.start >= R.blockFrom && e.start < R.blockTo) f.push("Bringen in Mittagssperre");
+  }
+  if(e.end!=null){
+    if(inBreakfast(e.end)) f.push("Abholen in Frühstückssperre");
+    if(e.end > R.blockFrom && e.end <= R.blockTo) f.push("Abholen in Mittagssperre");
+  }
+  return f;
+}
+
+/* ---------- Empfehlung ---------- */
+function isEmptyWeek(w){ return w.rows.every(r => !r.off && r.start==null && r.end==null); }
+
+function recommend(w){
+  if(w.budget<=0) return {text:"Keine Betreuungstage in dieser Woche."};
+  if(w.openRows.length===0){
+    const b = w.used - w.budget;
+    return {text:"Woche abgeschlossen.", done:true, balance:b};
+  }
+  const perDay = Math.round(w.rest / w.openRows.length);
+  const open = w.pending[0];
+  if(open){
+    // Empfehlung für den laufenden Tag, Rest gleichmäßig auf die offenen Tage
+    let end = open.start + perDay;
+    let note = "";
+    if(end < R.blockTo){
+      note = "Vor 14:30 nicht möglich – Woche geht dadurch "+signed(R.blockTo-end)+" über das Budget.";
+      end = R.blockTo;
+    }
+    if(end > R.close){
+      note = "Nach 16:30 nicht möglich – es bleiben "+signed(end-R.close)+" ungenutzt.";
+      end = R.close;
+    }
+    return {
+      text:"Empfohlene Abholzeit heute", time:hhmm(end),
+      sub:dur(end-open.start)+(w.openRows.length>1 ? " · danach je "+dur(Math.round((w.rest-(end-open.start))/(w.openRows.length-1))) : ""),
+      note
+    };
+  }
+  return {
+    text:"Empfehlung pro offenem Tag", time:dur(perDay),
+    sub:w.openRows.length+" Tag"+(w.openRows.length>1?"e":"")+" offen · bei Bringen 08:00 Abholen "+hhmm(Math.min(R.close, 480+perDay))
+  };
+}
+
+/* ---------- Rendern ---------- */
+const $ = id => document.getElementById(id);
+let selected = null;
+
+function render(){
+  const w = computeWeek(cursor);
+  const last = addDays(cursor,4);
+  $("wkLabel").textContent = dmy(cursor)+"–"+dmy(last)+cursor.getFullYear();
+  const sub = [];
+  if(w.offCount) sub.push(w.offCount+" Ausfalltag"+(w.offCount>1?"e":""));
+  if(w.missingCount) sub.push(w.missingCount+" ohne Eintrag");
+  $("wkSub").textContent = w.absent ? "verkürzte Woche · "+sub.join(", ") : "reguläre Woche";
+
+  const today = iso(new Date());
+  const tb = $("tbody"); tb.innerHTML = "";
+  w.rows.forEach(r=>{
+    const tr = document.createElement("tr");
+    tr.className = "row" + (r.off||r.missing?" off":"") + (r.key===today?" today":"") +
+                   (selected===r.key?" sel":"") + (r.flags.length?" flagrow":"");
+    tr.onclick = () => openEditor(r.key);
+    const bal = r.balance==null ? '<span class="dash">—</span>'
+      : '<span class="'+(r.balance>0?"pos":"neg")+'">'+signed(r.balance)+'</span>';
+    tr.innerHTML =
+      '<td><span class="day">'+r.short+(r.flags.length?'<span class="flag"></span>':'')+
+        '</span><span class="date">'+dmy(r.date)+'</span></td>'+
+      '<td>'+(r.off?"frei":(r.start!=null?hhmm(r.start):'<span class="dash">—</span>'))+'</td>'+
+      '<td>'+(r.off?"":(r.end!=null?hhmm(r.end):'<span class="dash">—</span>'))+'</td>'+
+      '<td>'+(r.complete?dur(r.minutes):'<span class="dash">—</span>')+'</td>'+
+      '<td>'+(r.off?"":(r.missing?'<span class="dash">n. g.</span>':bal))+'</td>';
+    tb.appendChild(tr);
+  });
+
+  $("sSoll").textContent = dur(w.budget);
+  $("sIst").textContent  = dur(w.used);
+  const rec = recommend(w);
+  if(rec.done){
+    $("kRest").textContent = "Bilanz";
+    $("sRest").textContent = signed(rec.balance);
+    $("sRest").className = "v " + (rec.balance>0?"pos":"neg");
+    $("rec").innerHTML = "<strong>Woche abgeschlossen</strong><span class='note'>"+
+      (rec.balance>0?"Über":"Unter")+" Budget: "+signed(rec.balance)+"</span>";
+  }else{
+    $("kRest").textContent = "Rest";
+    $("sRest").textContent = dur(w.rest);
+    $("sRest").className = "v";
+    $("rec").innerHTML = rec.time
+      ? rec.text+"<br><strong>"+rec.time+"</strong>"+
+        (rec.sub?"<span class='note'>"+rec.sub+"</span>":"")+
+        (rec.note?"<span class='note'>"+rec.note+"</span>":"")
+      : rec.text + (rec.sub?"<span class='note'>"+rec.sub+"</span>":"");
+  }
+
+  const hs = [];
+  w.rows.forEach(r => r.flags.forEach(f => hs.push(r.short+": "+f)));
+  w.rows.forEach(r => { if(r.partial) hs.push(r.short+": "+(r.end==null?"Abholzeit":"Bringzeit")+" fehlt – Tag wird nicht gerechnet"); });
+  $("hints").innerHTML = hs.map(h=>"<div>"+h+"</div>").join("");
+
+  $("prev").disabled = cursor <= firstMonday();
+
+  const todayRow = w.rows.find(r=>r.key===today);
+  $("qBring").disabled = !todayRow || todayRow.off || todayRow.start!=null;
+  $("qHol").disabled   = !todayRow || todayRow.off || todayRow.start==null || todayRow.end!=null;
+}
+
+/* ---------- Editor ---------- */
+function openEditor(key){
+  selected = key;
+  const e = data.days[key] || {start:null,end:null,off:false};
+  const d = parseISO(key);
+  $("edTitle").textContent = DAYS[(d.getDay()+6)%7]+", "+dmy(d)+d.getFullYear();
+  $("inStart").value = e.start!=null ? hhmm(e.start) : "";
+  $("inEnd").value   = e.end!=null   ? hhmm(e.end)   : "";
+  $("edOff").textContent = e.off ? "Ausfalltag aufheben" : "Ausfalltag";
+  $("edMsg").textContent = "";
+  $("editor").hidden = false;
+  render();
+  $("editor").scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+function closeEditor(){ selected=null; $("editor").hidden=true; render(); }
+
+function toMin(v){
+  if(!v) return null;
+  const [h,m] = v.split(":").map(Number);
+  return h*60+m;
+}
+function validate(s,e){
+  const bad = [];
+  [["Bringzeit",s],["Abholzeit",e]].forEach(([n,v])=>{
+    if(v==null) return;
+    if(v < R.open)  bad.push(n+" liegt vor der Öffnung 07:00.");
+    if(v > R.close) bad.push(n+" liegt nach Schließung 16:30.");
+  });
+  if(s!=null && e!=null && e<=s) bad.push("Abholzeit liegt nicht nach der Bringzeit.");
+  return bad;
+}
+
+$("edSave").onclick = () => {
+  const s = toMin($("inStart").value), e = toMin($("inEnd").value);
+  const bad = validate(s,e);
+  if(bad.length){ $("edMsg").textContent = bad.join(" "); return; }
+  if(s==null && e==null){ delete data.days[selected]; }
+  else { data.days[selected] = {start:s, end:e, off:false}; }
+  save();
+  const warn = flagsFor({start:s,end:e,off:false}, selected);
+  closeEditor();
+  if(warn.length) setTimeout(()=>alert("Gespeichert.\n\n"+warn.join("\n")),60);
+};
+$("edOff").onclick = () => {
+  const cur = data.days[selected];
+  if(cur && cur.off){ delete data.days[selected]; }
+  else { data.days[selected] = {start:null,end:null,off:true}; }
+  save(); closeEditor();
+};
+$("edClear").onclick = () => { delete data.days[selected]; save(); closeEditor(); };
+$("edCancel").onclick = closeEditor;
+document.querySelectorAll(".now").forEach(b=>{
+  b.onclick = () => {
+    const n = new Date();
+    $(b.dataset.for).value = pad(n.getHours())+":"+pad(n.getMinutes());
+  };
+});
+
+/* ---------- Schnellerfassung ---------- */
+function nowMin(){ const n=new Date(); return n.getHours()*60+n.getMinutes(); }
+$("qBring").onclick = () => {
+  const k = iso(new Date()), m = nowMin();
+  const bad = validate(m,null);
+  if(bad.length && !confirm(bad.join(" ")+"\n\nTrotzdem speichern?")) return;
+  const e = data.days[k] || {start:null,end:null,off:false};
+  data.days[k] = {start:m, end:e.end, off:false};
+  save(); cursor = mondayOf(new Date()); render();
+  const w = flagsFor(data.days[k], k);
+  if(w.length) setTimeout(()=>alert(w.join("\n")),60);
+};
+$("qHol").onclick = () => {
+  const k = iso(new Date()), m = nowMin();
+  const e = data.days[k];
+  const bad = validate(e?e.start:null, m);
+  if(bad.length && !confirm(bad.join(" ")+"\n\nTrotzdem speichern?")) return;
+  data.days[k] = {start:e.start, end:m, off:false};
+  save(); cursor = mondayOf(new Date()); render();
+  const w = flagsFor(data.days[k], k);
+  if(w.length) setTimeout(()=>alert(w.join("\n")),60);
+};
+
+$("prev").onclick = () => { if(cursor <= firstMonday()) return; cursor = addDays(cursor,-7); closeEditor(); };
+$("next").onclick = () => { cursor = addDays(cursor, 7); closeEditor(); };
+
+/* ---------- Export ---------- */
+function allWeeks(){
+  const keys = Object.keys(data.days).sort();
+  if(!keys.length) return [];
+  const out = [];
+  let m = mondayOf(parseISO(keys[0]));
+  const lastM = mondayOf(parseISO(keys[keys.length-1]));
+  while(m <= lastM){
+    const w = computeWeek(m);
+    if(!isEmptyWeek(w)) out.push(w);   // Ferien-/Lückenwochen ohne jeden Eintrag nicht exportieren
+    m = addDays(m,7);
+  }
+  return out;
+}
+function incompleteDays(){
+  const today = iso(new Date());
+  const bad = [];
+  allWeeks().forEach(w => w.rows.forEach(r=>{
+    if(r.off || r.key > today) return;
+    if(r.start!=null && r.end==null) bad.push(r.key+" – Abholzeit fehlt");
+    if(r.start==null && r.end!=null) bad.push(r.key+" – Bringzeit fehlt");
+  }));
+  return bad;
+}
+function checkBeforeExport(){
+  const bad = incompleteDays();
+  if(!bad.length) return true;
+  return confirm("Unvollständige Tage:\n\n"+bad.join("\n")+
+    "\n\nDiese Tage zählen als nicht da gewesen (Budget −7h).\nTrotzdem exportieren?");
+}
+function download(name, text, mime){
+  const b = new Blob([text], {type:mime});
+  const u = URL.createObjectURL(b);
+  const a = document.createElement("a");
+  a.href = u; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(u); a.remove(); }, 1000);
+}
+function buildCsv(){
+  const L = ["Datum;Wochenstart;Tag;Status;Start;Ende;Dauer_min;Bilanz_min;Wochenbudget_min;Wochen_Ist_min;Wochen_Bilanz_min;Wochentyp;Vollstaendig;Hinweise"];
+  allWeeks().forEach(w=>{
+    const type = w.absent>0 ? "verkuerzt" : "regulaer";
+    w.rows.forEach(r=>{
+      L.push([
+        r.key, iso(w.mon), r.name,
+        r.off ? "ausfall" : r.missing ? "nicht_gerechnet" : (r.complete ? "betreuung" : "offen"),
+        r.start!=null?hhmm(r.start):"", r.end!=null?hhmm(r.end):"",
+        r.minutes!=null?r.minutes:"", r.balance!=null?r.balance:"",
+        w.budget, w.used, w.closed ? w.used-w.budget : "", type, w.missingCount?"nein":"ja",
+        r.flags.join(" / ")
+      ].join(";"));
+    });
+  });
+  return L.join("\n");
+}
+$("expCsv").onclick = () => {
+  if(!checkBeforeExport()) return;
+  download("kita-zeiten-"+iso(new Date())+".csv", "\uFEFF"+buildCsv(), "text/csv;charset=utf-8");
+};
+$("expJson").onclick = () => {
+  if(!checkBeforeExport()) return;
+  download("kita-backup-"+iso(new Date())+".json", JSON.stringify(data,null,2), "application/json");
+};
+
+/* ---------- Auswertung ---------- */
+const avg = a => a.length ? Math.round(a.reduce((s,x)=>s+x,0)/a.length) : null;
+const hm = m => m==null ? "—" : hhmm(m);
+const fDate = k => { const d=parseISO(k); return dmy(d)+d.getFullYear(); };
+const MONTHS = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const pct = (n,t) => t ? Math.round(n*100/t)+" %" : "—";
+
+function kv(rows){
+  return '<div class="sum">'+rows.map(([k,v])=>'<span class="k">'+k+'</span><span class="v">'+v+'</span>').join("")+'</div>';
+}
+function tbl(head, rows, hiIdx){
+  return '<table><thead><tr>'+head.map(h=>'<th>'+h+'</th>').join("")+'</tr></thead><tbody>'+
+    rows.map((r,i)=>'<tr'+(i===hiIdx?' class="hi"':'')+'>'+r.map(c=>'<td>'+c+'</td>').join("")+'</tr>').join("")+
+    '</tbody></table>';
+}
+const card = (title, html) => '<div class="card"><h2>'+title+'</h2>'+html+'</div>';
+const balSpan = b => '<span class="'+(b>0?"pos":"neg")+'">'+signed(b)+'</span>';
+
+function buildAnalytics(){
+  const weeks = allWeeks();
+  const days = [];
+  weeks.forEach(w => w.rows.forEach(r => { if(r.complete) days.push(r); }));
+  if(!days.length) return card("Auswertung", "<p class='note'>Noch keine vollständigen Tage.</p>");
+
+  const out = [];
+  const total = days.reduce((s,r)=>s+r.minutes,0);
+  const cut = iso(addDays(new Date(),-365));
+  const last12 = days.filter(r=>r.key>=cut).reduce((s,r)=>s+r.minutes,0);
+  const closed = weeks.filter(w=>w.closed);
+  const reg = closed.filter(w=>w.absent===0), shortW = closed.filter(w=>w.absent>0);
+
+  // Überblick
+  out.push(card("Überblick", kv([
+    ["Zeitraum", fDate(days[0].key)+" – "+fDate(days[days.length-1].key)],
+    ["Betreuungstage", days.length],
+    ["Genutzt gesamt", dur(total)],
+    ["Genutzt letzte 12 Monate", dur(last12)],
+    ["Ø Tagesdauer", dur(avg(days.map(r=>r.minutes)))],
+    ["Ø Wochenstunden (reguläre Wochen)", reg.length ? dur(avg(reg.map(w=>w.used))) : "—"]
+  ])));
+
+  // Wochenkonto
+  const bal = w => w.used - w.budget;
+  const over = closed.filter(w=>bal(w)>0), under = closed.filter(w=>bal(w)<0), exact = closed.filter(w=>bal(w)===0);
+  const sumBal = closed.reduce((s,w)=>s+bal(w),0);
+  out.push(card("Wochenkonto", kv([
+    ["Abgeschlossene Wochen", closed.length+" ("+reg.length+" regulär, "+shortW.length+" verkürzt)"],
+    ["Über Budget", over.length],
+    ["Unter Budget", under.length],
+    ["Genau getroffen", exact.length],
+    ["Ø Bilanz reguläre Wochen", reg.length ? balSpan(avg(reg.map(bal))) : "—"],
+    ["Ø Bilanz verkürzte Wochen", shortW.length ? balSpan(avg(shortW.map(bal))) : "—"],
+    ["Ø Restguthaben (Wochen unter Budget)", under.length ? dur(avg(under.map(w=>-bal(w)))) : "—"],
+    ["Bilanz gesamt", closed.length ? balSpan(sumBal) : "—"],
+    ["Wochen mit Tagen ohne Eintrag", closed.filter(w=>w.missingCount>0).length]
+  ]) + (closed.length ? tbl(["Woche","Typ","Soll","Ist","Bilanz"],
+      closed.slice().reverse().map(w=>[dmy(w.mon), w.absent?"verkürzt":"regulär", dur(w.budget), dur(w.used), balSpan(bal(w))])) : "")));
+
+  // Zeiten
+  const byStart = days.slice().sort((a,b)=>a.start-b.start);
+  const byEnd = days.slice().sort((a,b)=>a.end-b.end);
+  const f = r => fDate(r.key);
+  out.push(card("Bring- und Abholzeiten", kv([
+    ["Ø Bringzeit", hm(avg(days.map(r=>r.start)))],
+    ["Ø Abholzeit", hm(avg(days.map(r=>r.end)))],
+    ["Früheste Bringzeit", hm(byStart[0].start)+" · "+f(byStart[0])],
+    ["Späteste Bringzeit", hm(byStart[byStart.length-1].start)+" · "+f(byStart[byStart.length-1])],
+    ["Früheste Abholzeit", hm(byEnd[0].end)+" · "+f(byEnd[0])],
+    ["Späteste Abholzeit", hm(byEnd[byEnd.length-1].end)+" · "+f(byEnd[byEnd.length-1])]
+  ])));
+
+  // Wochentage
+  const wd = SHORT.map((s,i)=>{ const d = days.filter(r=>r.idx===i);
+    return {s, n:d.length, dur:avg(d.map(r=>r.minutes)), st:avg(d.map(r=>r.start)), en:avg(d.map(r=>r.end))}; });
+  let longest = -1, best = -1;
+  wd.forEach((x,i)=>{ if(x.dur!=null && x.dur>best){ best=x.dur; longest=i; } });
+  out.push(card("Nach Wochentag", tbl(["Tag","Tage","Ø Dauer","Ø Bringen","Ø Abholen"],
+    wd.map(x=>[x.s, x.n, x.dur!=null?dur(x.dur):"—", hm(x.st), hm(x.en)]), longest) +
+    (longest>=0 ? "<p class='note'>Im Schnitt am längsten: "+DAYS[longest]+".</p>" : "")));
+
+  // Bringzeit-Fenster
+  const buckets = [
+    ["vor 08:00", r=>r.start<480], ["08:00–08:29", r=>r.start>=480&&r.start<510],
+    ["08:30–08:59", r=>r.start>=510&&r.start<540], ["09:00–09:40", r=>r.start>=540&&r.start<=R.bringDeadline],
+    ["nach 09:40", r=>r.start>R.bringDeadline]
+  ];
+  out.push(card("Bringzeit-Fenster", tbl(["Fenster","Tage","Anteil"],
+    buckets.map(([l,fn])=>{ const n=days.filter(fn).length; return [l, n, pct(n,days.length)]; }))));
+
+  // Regeln
+  const has = t => days.filter(r=>r.flags.some(x=>x.indexOf(t)>=0)).length;
+  const bfDays = days.filter(r=>breakfastApplies(r.key)).length;
+  out.push(card("Regeln", kv([
+    ["Bringen nach 09:40", has("nach 09:40")],
+    ["In Frühstückssperre (bis 27.09.)", has("Frühstückssperre")+" von "+bfDays+" Tagen"],
+    ["In Mittagssperre", has("Mittagssperre")],
+    ["Tage mit Regelverstoß", days.filter(r=>r.flags.length).length+" von "+days.length]
+  ])));
+
+  // Monate
+  const mon = {};
+  days.forEach(r=>{ const k=r.key.slice(0,7); (mon[k]=mon[k]||[]).push(r.minutes); });
+  out.push(card("Nach Monat", tbl(["Monat","Tage","Stunden","Ø Tag"],
+    Object.keys(mon).sort().reverse().map(k=>{ const a=mon[k];
+      return [MONTHS[+k.slice(5,7)-1]+" "+k.slice(0,4), a.length, dur(a.reduce((s,x)=>s+x,0)), dur(avg(a))]; }))));
+
+  out.push("<p class='tiny'>Nur vollständig erfasste Tage. Tage ohne vollständige Zeiten zählen als nicht da gewesen. Laufende Woche nicht im Wochenkonto.</p>");
+  return out.join("");
+}
+$("anaOpen").onclick = () => {
+  $("anaBody").innerHTML = buildAnalytics();
+  $("main").hidden = true; $("ana").hidden = false; window.scrollTo(0,0);
+};
+$("anaClose").onclick = () => { $("ana").hidden = true; $("main").hidden = false; window.scrollTo(0,0); };
+
+/* ---------- Icon + Manifest (Home-Screen) ---------- */
+(function(){
+  const c = document.createElement("canvas"); c.width=c.height=180;
+  const x = c.getContext("2d");
+  x.fillStyle="#3f6b52"; x.fillRect(0,0,180,180);
+  x.fillStyle="#fffdfa"; x.font="600 92px -apple-system,sans-serif";
+  x.textAlign="center"; x.textBaseline="middle"; x.fillText("K",90,96);
+  const png = c.toDataURL("image/png");
+  const t = document.createElement("link");
+  t.rel="apple-touch-icon"; t.href=png; document.head.appendChild(t);
+  const f = document.createElement("link");
+  f.rel="icon"; f.href=png; document.head.appendChild(f);
+  const man = {name:"Kita-Zeiten", short_name:"Kita", display:"standalone",
+    background_color:"#f6f3ee", theme_color:"#f6f3ee", start_url:".",
+    icons:[{src:png, sizes:"180x180", type:"image/png"}]};
+  const ml = document.createElement("link");
+  ml.rel="manifest";
+  ml.href=URL.createObjectURL(new Blob([JSON.stringify(man)],{type:"application/json"}));
+  document.head.appendChild(ml);
+})();
+
+$("ver").textContent = VERSION;
+render();
+</script>
+</body>
+</html>
